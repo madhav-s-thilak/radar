@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Antarctica Meltwater Detection · CReSIS MCoRDS 2016</title>
+
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body, #cesiumContainer {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #050a0f;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* ── Header ────────────────────────────────────────────────────── */
+  #header {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 14px 22px 12px;
+    background: linear-gradient(180deg, rgba(5,10,15,0.97) 70%, transparent);
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    pointer-events: none;
+  }
+  #header h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: #e0f4ff;
+    text-transform: uppercase;
+  }
+  #header span {
+    font-size: 11px;
+    color: #5a8fa8;
+    letter-spacing: 0.06em;
+    font-weight: 300;
+  }
+
+  /* ── Left panel ────────────────────────────────────────────────── */
+  #panel {
+    position: absolute;
+    top: 60px; left: 16px;
+    z-index: 100;
+    width: 230px;
+    background: rgba(5, 12, 20, 0.88);
+    border: 1px solid rgba(0,180,255,0.15);
+    border-radius: 10px;
+    padding: 16px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 32px rgba(0,0,0,0.6);
+  }
+
+  .panel-section {
+    margin-bottom: 18px;
+  }
+  .panel-section:last-child { margin-bottom: 0; }
+
+  .panel-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    color: #3a7fa8;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  /* ── Colorbar ──────────────────────────────────────────────────── */
+  #colorbar-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  #colorbar {
+    width: 100%;
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(
+      to right,
+      #1a3a6e,
+      #1e6fa8,
+      #00c8a8,
+      #f5c400,
+      #ff6a00,
+      #e0000f
+    );
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .colorbar-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: #5a8fa8;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* ── Stats ─────────────────────────────────────────────────────── */
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-key {
+    font-size: 10px;
+    color: #5a8fa8;
+    font-weight: 300;
+  }
+  .stat-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: #c8e8ff;
+    font-weight: 700;
+  }
+  .stat-val.hot { color: #ff6a00; }
+  .stat-val.warm { color: #f5c400; }
+
+  /* ── Filter slider ─────────────────────────────────────────────── */
+  #threshold-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  #threshold-wrap label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #5a8fa8;
+  }
+  #threshold-wrap label span {
+    font-family: 'Space Mono', monospace;
+    color: #c8e8ff;
+    font-weight: 700;
+  }
+  #threshold {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.1);
+    outline: none;
+    cursor: pointer;
+  }
+  #threshold::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #00c8a8;
+    border: 2px solid #050a0f;
+    box-shadow: 0 0 6px rgba(0,200,168,0.6);
+    cursor: pointer;
+  }
+
+  /* ── Buttons ───────────────────────────────────────────────────── */
+  .btn-row {
+    display: flex;
+    gap: 6px;
+  }
+  .btn {
+    flex: 1;
+    padding: 6px 0;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: 1px solid rgba(0,180,255,0.25);
+    background: rgba(0,130,200,0.12);
+    color: #7ac8e8;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .btn:hover {
+    background: rgba(0,180,255,0.22);
+    color: #c8eeff;
+    border-color: rgba(0,200,255,0.5);
+  }
+  .btn.active {
+    background: rgba(0,200,168,0.2);
+    border-color: #00c8a8;
+    color: #00e8c8;
+  }
+
+  /* ── Tooltip ───────────────────────────────────────────────────── */
+  #tooltip {
+    position: absolute;
+    bottom: 24px; right: 16px;
+    z-index: 100;
+    background: rgba(5,12,20,0.92);
+    border: 1px solid rgba(0,200,168,0.3);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 11px;
+    color: #c8e8ff;
+    pointer-events: none;
+    display: none;
+    backdrop-filter: blur(8px);
+    max-width: 240px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+  #tooltip .t-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: #3a7fa8;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  #tooltip .t-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 2px 0;
+  }
+  #tooltip .t-k { color: #5a8fa8; font-size: 10px; }
+  #tooltip .t-v {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: #e0f4ff;
+    font-weight: 700;
+  }
+
+  /* ── Loading overlay ───────────────────────────────────────────── */
+  #loading {
+    position: absolute;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(5,10,15,0.92);
+    gap: 14px;
+    transition: opacity 0.5s;
+  }
+  #loading.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  #loading-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: #3a7fa8;
+    text-transform: uppercase;
+  }
+  #loading-bar-wrap {
+    width: 180px;
+    height: 3px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  #loading-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #00c8a8, #00bfff);
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  /* Hide Cesium default UI clutter */
+  .cesium-viewer-toolbar,
+  .cesium-viewer-animationContainer,
+  .cesium-viewer-timelineContainer,
+  .cesium-viewer-bottom { display: none !important; }
+</style>
+</head>
+
+<body>
+
+<div id="loading">
+  <div id="loading-text">Loading meltwater data</div>
+  <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
+</div>
+
+<div id="cesiumContainer"></div>
+
+<div id="header">
+  <h1>Antarctica Meltwater Detection</h1>
+  <span>NASA CReSIS MCoRDS · 2016 DC8 Campaign · CSARP_mvdr</span>
+</div>
+
+<div id="panel">
+
+  <div class="panel-section">
+    <div class="panel-label">P(melt) colour scale</div>
+    <div id="colorbar-wrap">
+      <div id="colorbar"></div>
+      <div class="colorbar-ticks">
+        <span>0.0</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1.0</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-label">Dataset statistics</div>
+    <div id="stats">
+      <div class="stat-row">
+        <span class="stat-key">Total traces</span>
+        <span class="stat-val" id="s-total">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-key">Meltwater (≥0.5)</span>
+        <span class="stat-val hot" id="s-melt">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-key">Melt fraction</span>
+        <span class="stat-val warm" id="s-frac">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-key">Mean P(melt)</span>
+        <span class="stat-val" id="s-mean">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-label">Filter by P(melt) threshold</div>
+    <div id="threshold-wrap">
+      <label>Show ≥ threshold <span id="thresh-val">0.00</span></label>
+      <input type="range" id="threshold" min="0" max="1" step="0.01" value="0">
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-label">Colour mode</div>
+    <div class="btn-row">
+      <div class="btn active" id="btn-mode-cons" onclick="setColorMode('consensus')" title="Uses the validated consensus flag (GMM + IsoForest + OCSVM). More accurate.">Consensus ★</div>
+      <div class="btn" id="btn-mode-prob" onclick="setColorMode('probability')" title="Raw GMM soft probability — shows all traces coloured by P(melt).">Raw P(melt)</div>
+    </div>
+    <div style="font-size:9px;color:#3a7fa8;margin-top:6px;line-height:1.4;">
+      ★ Consensus = validated by 3 models.<br>
+      Red = confirmed melt · Blue = ice
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-label">View</div>
+    <div class="btn-row">
+      <div class="btn active" id="btn-all" onclick="setView('all')">All</div>
+      <div class="btn" id="btn-melt" onclick="setView('melt')">Melt only</div>
+      <div class="btn" id="btn-ice" onclick="setView('ice')">Ice only</div>
+    </div>
+  </div>
+
+  <div class="panel-section">
+    <div class="panel-label">Camera</div>
+    <div class="btn-row">
+      <div class="btn" onclick="flyToAntarctica()">Antarctica</div>
+      <div class="btn" onclick="flyToData()">Data extent</div>
+    </div>
+  </div>
+
+</div>
+
+<div id="tooltip">
+  <div class="t-label">Radar trace</div>
+  <div class="t-row"><span class="t-k">File</span><span class="t-v" id="tt-file">—</span></div>
+  <div class="t-row"><span class="t-k">P(melt)</span><span class="t-v" id="tt-melt">—</span></div>
+  <div class="t-row"><span class="t-k">Consensus melt</span><span class="t-v" id="tt-cons">—</span></div>
+  <div class="t-row"><span class="t-k">GMM cluster</span><span class="t-v" id="tt-gmm">—</span></div>
+  <div class="t-row"><span class="t-k">Latitude</span><span class="t-v" id="tt-lat">—</span></div>
+  <div class="t-row"><span class="t-k">Longitude</span><span class="t-v" id="tt-lon">—</span></div>
+  <div class="t-row"><span class="t-k">Elevation</span><span class="t-v" id="tt-elev">—</span></div>
+  <div class="t-row"><span class="t-k">Peak power</span><span class="t-v" id="tt-pp">—</span></div>
+  <div class="t-row"><span class="t-k">Kurtosis</span><span class="t-v" id="tt-kurt">—</span></div>
+  <div class="t-row"><span class="t-k">RSR specularity</span><span class="t-v" id="tt-rsr">—</span></div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
